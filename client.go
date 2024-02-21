@@ -116,7 +116,7 @@ func (c *Client) readPump() {
 
 		// create a message with the client id and the message text
 		c.hub.broadcast <- &Message{
-			ClientId: c.id,
+			ClientID: c.id,
 			Text:     msg.Text,
 		}
 	}
