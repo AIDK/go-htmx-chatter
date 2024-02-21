@@ -8,7 +8,7 @@ import (
 )
 
 type Message struct {
-	ClientId string // client id
+	ClientID string // client id
 	Text     string // message text
 }
 
@@ -40,13 +40,22 @@ func (h *Hub) Run() {
 	// this will listen for messages and broadcast them to clients
 	for {
 		select {
-		case client := <-h.register:
-			// add the client to the hub
+		case client := <-h.register: // when a client connects, we add the client to the hub
+
+			// we perform a lock on the hub to prevent concurrent access
 			h.Lock()
-			h.clients[client] = true // this isnt concurrent safe so we have to set a lock
+			// we add the client to the hub
+			h.clients[client] = true
+			// we release the lock
 			h.Unlock()
 
 			log.Printf("client %s connected", client.id)
+
+			// when a client connects, we send the message history to the client (if there are any messages)
+			for _, msg := range h.messages {
+				client.send <- getMessageTemplate(msg)
+			}
+
 		case client := <-h.unregister:
 			// we can remove the client from the hub,
 			// but first we need to check if the client exists
@@ -54,14 +63,20 @@ func (h *Hub) Run() {
 				log.Printf("client %s disconnected", client.id)
 				// we close the send channel to prevent the client from hanging the connection open
 				close(client.send)
+
+				// we perform a lock on the hub to prevent concurrent access
 				h.Lock()
+				// we remove the client from the hub
 				delete(h.clients, client)
+				// we release the lock
 				h.Unlock()
 			}
+
 		case msg := <-h.broadcast:
 			// we add the message to the message history
 			h.messages = append(h.messages, msg)
 
+			// for each client in the hub, we send the message to the client
 			for client := range h.clients {
 				select {
 				// here we send the message to the client but we're going
